@@ -6,6 +6,19 @@ import { prisma } from "@/lib/db";
 import { setSessionCookie } from "@/lib/session";
 import { signSessionToken } from "@/lib/session";
 
+function isSecureRequest(req: Request) {
+  const xfProto = req.headers.get("x-forwarded-proto");
+  if (xfProto) {
+    return xfProto.split(",")[0]?.trim().toLowerCase() === "https";
+  }
+
+  try {
+    return new URL(req.url).protocol === "https:";
+  } catch {
+    return false;
+  }
+}
+
 const bodySchema = z.object({
   email: z.string().email(),
   password: z.string().min(1)
@@ -31,7 +44,7 @@ export async function POST(req: Request) {
   }
 
   const token = await signSessionToken({ sub: user.id, email: user.email });
-  await setSessionCookie(token);
+  await setSessionCookie(token, { secure: isSecureRequest(req) });
 
   return NextResponse.json({ ok: true });
 }

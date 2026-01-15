@@ -11,28 +11,32 @@ type SessionPayload = {
   email: string;
 };
 
+type SessionCookieOptions = {
+  secure?: boolean;
+};
+
 function getJwtSecret() {
   const { AUTH_JWT_SECRET } = getEnv();
   return new TextEncoder().encode(AUTH_JWT_SECRET);
 }
 
-export async function setSessionCookie(token: string) {
+export async function setSessionCookie(token: string, options?: SessionCookieOptions) {
   const cookieStore = await cookies();
   cookieStore.set(COOKIE_NAME, token, {
     httpOnly: true,
     sameSite: "lax",
-    secure: process.env.NODE_ENV === "production",
+    secure: options?.secure ?? process.env.NODE_ENV === "production",
     path: "/",
     maxAge: 60 * 60 * 24 * 30
   });
 }
 
-export async function clearSessionCookie() {
+export async function clearSessionCookie(options?: SessionCookieOptions) {
   const cookieStore = await cookies();
   cookieStore.set(COOKIE_NAME, "", {
     httpOnly: true,
     sameSite: "lax",
-    secure: process.env.NODE_ENV === "production",
+    secure: options?.secure ?? process.env.NODE_ENV === "production",
     path: "/",
     maxAge: 0
   });
