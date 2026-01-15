@@ -40,13 +40,13 @@ function parseMaybeDate(v: unknown): Date | undefined {
 
 export async function POST(
   _req: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   const userId = await getApiUserId();
   if (!userId) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
-  const channelId = params.id;
+  const { id: channelId } = await params;
   const channel = await prisma.channel.findFirst({ where: { id: channelId, userId } });
   if (!channel) return NextResponse.json({ error: "Channel not found" }, { status: 404 });
 
