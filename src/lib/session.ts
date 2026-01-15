@@ -16,8 +16,9 @@ function getJwtSecret() {
   return new TextEncoder().encode(AUTH_JWT_SECRET);
 }
 
-export function setSessionCookie(token: string) {
-  cookies().set(COOKIE_NAME, token, {
+export async function setSessionCookie(token: string) {
+  const cookieStore = await cookies();
+  cookieStore.set(COOKIE_NAME, token, {
     httpOnly: true,
     sameSite: "lax",
     secure: process.env.NODE_ENV === "production",
@@ -26,8 +27,9 @@ export function setSessionCookie(token: string) {
   });
 }
 
-export function clearSessionCookie() {
-  cookies().set(COOKIE_NAME, "", {
+export async function clearSessionCookie() {
+  const cookieStore = await cookies();
+  cookieStore.set(COOKIE_NAME, "", {
     httpOnly: true,
     sameSite: "lax",
     secure: process.env.NODE_ENV === "production",
@@ -60,7 +62,8 @@ export async function verifySessionToken(token: string) {
 }
 
 export async function getApiUserId() {
-  const token = cookies().get(COOKIE_NAME)?.value;
+  const cookieStore = await cookies();
+  const token = cookieStore.get(COOKIE_NAME)?.value;
   if (!token) return null;
 
   try {
