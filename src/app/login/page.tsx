@@ -26,12 +26,15 @@ export default function LoginPage() {
       });
 
       if (!res.ok) {
-        setError(await res.text());
+        const text = await res.text().catch(() => "");
+        setError(text || "Login failed");
         return;
       }
 
       router.replace("/");
       router.refresh();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Network error");
     } finally {
       setIsBusy(false);
     }

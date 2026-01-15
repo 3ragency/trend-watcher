@@ -27,11 +27,15 @@ export default function RegisterPage() {
       });
 
       if (!res.ok) {
-        setError(await res.text());
+        const text = await res.text().catch(() => "");
+        setError(text || "Registration failed");
         return;
       }
 
-      router.replace("/login");
+      router.replace("/");
+      router.refresh();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Network error");
     } finally {
       setIsBusy(false);
     }

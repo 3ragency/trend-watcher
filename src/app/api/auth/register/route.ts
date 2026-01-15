@@ -3,6 +3,7 @@ import { z } from "zod";
 import bcrypt from "bcryptjs";
 
 import { prisma } from "@/lib/db";
+import { setSessionCookie, signSessionToken } from "@/lib/session";
 
 const bodySchema = z.object({
   email: z.string().email(),
@@ -34,5 +35,8 @@ export async function POST(req: Request) {
     }
   });
 
-  return NextResponse.json({ id: user.id, email: user.email });
+  const token = await signSessionToken({ sub: user.id, email: user.email });
+  await setSessionCookie(token);
+
+  return NextResponse.json({ ok: true });
 }
