@@ -18,16 +18,16 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });
   }
 
-  const { email, password, displayName } = parsed.data;
-
-  const exists = await prisma.user.findUnique({ where: { email } });
-  if (exists) {
-    return NextResponse.json({ error: "Email already registered" }, { status: 409 });
-  }
-
-  const passwordHash = await bcrypt.hash(password, 12);
-
   try {
+    const { email, password, displayName } = parsed.data;
+
+    const exists = await prisma.user.findUnique({ where: { email } });
+    if (exists) {
+      return NextResponse.json({ error: "Email already registered" }, { status: 409 });
+    }
+
+    const passwordHash = await bcrypt.hash(password, 12);
+
     const user = await prisma.user.create({
       data: {
         email,
@@ -42,6 +42,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ ok: true });
   } catch (e) {
     const message = e instanceof Error ? e.message : String(e);
+    console.error("/api/auth/register failed:", message);
     return NextResponse.json({ error: message }, { status: 500 });
   }
 }
