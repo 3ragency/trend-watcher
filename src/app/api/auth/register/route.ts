@@ -27,16 +27,21 @@ export async function POST(req: Request) {
 
   const passwordHash = await bcrypt.hash(password, 12);
 
-  const user = await prisma.user.create({
-    data: {
-      email,
-      displayName: displayName ?? null,
-      passwordHash
-    }
-  });
+  try {
+    const user = await prisma.user.create({
+      data: {
+        email,
+        displayName: displayName ?? null,
+        passwordHash
+      }
+    });
 
-  const token = await signSessionToken({ sub: user.id, email: user.email });
-  await setSessionCookie(token);
+    const token = await signSessionToken({ sub: user.id, email: user.email });
+    await setSessionCookie(token);
 
-  return NextResponse.json({ ok: true });
+    return NextResponse.json({ ok: true });
+  } catch (e) {
+    const message = e instanceof Error ? e.message : String(e);
+    return NextResponse.json({ error: message }, { status: 500 });
+  }
 }

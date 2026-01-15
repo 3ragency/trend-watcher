@@ -27,8 +27,14 @@ export default function RegisterPage() {
       });
 
       if (!res.ok) {
-        const text = await res.text().catch(() => "");
-        setError(text || "Registration failed");
+        const contentType = res.headers.get("content-type") ?? "";
+        if (contentType.includes("application/json")) {
+          const j = await res.json().catch(() => null);
+          setError((j && (j.error || j.message)) ? String(j.error || j.message) : "Registration failed");
+        } else {
+          const text = await res.text().catch(() => "");
+          setError(text || "Registration failed");
+        }
         return;
       }
 
