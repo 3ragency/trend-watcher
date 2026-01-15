@@ -1,0 +1,87 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Platform {
+  YOUTUBE
+  INSTAGRAM
+  TIKTOK
+}
+
+model Channel {
+  id               String    @id @default(uuid()) @db.Uuid
+  userId           String    @db.Uuid
+  user             User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  platform         Platform
+  externalId       String
+  displayName      String?
+  handle           String?
+  url              String?
+  avatarUrl        String?
+  subscribersCount BigInt?
+  totalViewsCount  BigInt?
+  videosCount      Int?
+  lastFetchedAt    DateTime?
+  raw              Json?
+
+  videos           Video[]
+
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  @@unique([userId, platform, externalId])
+  @@index([userId])
+  @@index([userId, platform])
+}
+
+model User {
+  id           String      @id @default(uuid()) @db.Uuid
+  email        String      @unique
+  displayName  String?
+  passwordHash String
+  isActive     Boolean     @default(true)
+
+  channels     Channel[]
+  videos       Video[]
+
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+
+  @@index([isActive])
+}
+
+model Video {
+  id             String    @id @default(uuid()) @db.Uuid
+  userId         String    @db.Uuid
+  user           User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  platform       Platform
+  externalId     String
+  url            String
+  title          String?
+  description    String?
+  thumbnailUrl   String?
+  publishedAt    DateTime?
+
+  viewsCount     BigInt?
+  likesCount     BigInt?
+  commentsCount  BigInt?
+  durationSeconds Int?
+
+  raw            Json?
+
+  channelId      String    @db.Uuid
+  channel        Channel   @relation(fields: [channelId], references: [id], onDelete: Cascade)
+
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  @@unique([userId, platform, externalId])
+  @@index([userId])
+  @@index([channelId])
+  @@index([userId, platform])
+}
