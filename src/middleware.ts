@@ -1,5 +1,4 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { jwtVerify } from "jose";
 
 const COOKIE_NAME = "tw_session";
 
@@ -34,33 +33,13 @@ export async function middleware(req: NextRequest) {
     return NextResponse.redirect(url);
   }
 
-  const secret = new TextEncoder().encode(process.env.AUTH_JWT_SECRET ?? "");
-  if (secret.length < 16) {
-    if (isApi) return NextResponse.json({ error: "Server misconfigured" }, { status: 500 });
+  if (isPublicPath(pathname)) {
     const url = req.nextUrl.clone();
-    url.pathname = "/login";
+    url.pathname = "/";
     return NextResponse.redirect(url);
   }
 
-  try {
-    await jwtVerify(token, secret);
-
-    if (isPublicPath(pathname)) {
-      const url = req.nextUrl.clone();
-      url.pathname = "/";
-      return NextResponse.redirect(url);
-    }
-
-    return NextResponse.next();
-  } catch {
-    if (isApi) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
-    const url = req.nextUrl.clone();
-    url.pathname = "/login";
-    return NextResponse.redirect(url);
-  }
+  return NextResponse.next();
 }
 
 export const config = {
