@@ -16,73 +16,76 @@ enum Platform {
 
 model Channel {
   id               String    @id @default(uuid()) @db.Uuid
-  userId           String    @db.Uuid
+  userId           String    @db.Uuid @map("user_id")
   user             User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   platform         Platform
-  externalId       String
-  displayName      String?
+  externalId       String    @map("external_id")
+  displayName      String?   @map("display_name")
   handle           String?
   url              String?
-  avatarUrl        String?
-  subscribersCount BigInt?
-  totalViewsCount  BigInt?
-  videosCount      Int?
-  lastFetchedAt    DateTime?
+  avatarUrl        String?   @map("avatar_url")
+  subscribersCount BigInt?   @map("subscribers_count")
+  totalViewsCount  BigInt?   @map("total_views_count")
+  videosCount      Int?      @map("videos_count")
+  lastFetchedAt    DateTime? @map("last_fetched_at")
   raw              Json?
 
   videos           Video[]
 
-  createdAt        DateTime  @default(now())
-  updatedAt        DateTime  @updatedAt
+  createdAt        DateTime  @default(now()) @map("created_at")
+  updatedAt        DateTime  @updatedAt @map("updated_at")
 
   @@unique([userId, platform, externalId])
   @@index([userId])
   @@index([userId, platform])
+  @@map("channels")
 }
 
 model User {
   id           String      @id @default(uuid()) @db.Uuid
   email        String      @unique
-  displayName  String?
-  passwordHash String
-  isActive     Boolean     @default(true)
+  displayName  String?     @map("display_name")
+  passwordHash String      @map("password_hash")
+  isActive     Boolean     @default(true) @map("is_active")
 
   channels     Channel[]
   videos       Video[]
 
-  createdAt    DateTime    @default(now())
-  updatedAt    DateTime    @updatedAt
+  createdAt    DateTime    @default(now()) @map("created_at")
+  updatedAt    DateTime    @updatedAt @map("updated_at")
 
   @@index([isActive])
+  @@map("users")
 }
 
 model Video {
   id             String    @id @default(uuid()) @db.Uuid
-  userId         String    @db.Uuid
+  userId         String    @db.Uuid @map("user_id")
   user           User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   platform       Platform
-  externalId     String
+  externalId     String    @map("external_id")
   url            String
   title          String?
   description    String?
-  thumbnailUrl   String?
-  publishedAt    DateTime?
+  thumbnailUrl   String?   @map("thumbnail_url")
+  publishedAt    DateTime? @map("published_at")
 
-  viewsCount     BigInt?
-  likesCount     BigInt?
-  commentsCount  BigInt?
-  durationSeconds Int?
+  viewsCount      BigInt?   @map("views_count")
+  likesCount      BigInt?   @map("likes_count")
+  commentsCount   BigInt?   @map("comments_count")
+  durationSeconds Int?      @map("duration_seconds")
 
   raw            Json?
 
-  channelId      String    @db.Uuid
+  channelId      String    @db.Uuid @map("channel_id")
   channel        Channel   @relation(fields: [channelId], references: [id], onDelete: Cascade)
 
-  createdAt      DateTime  @default(now())
-  updatedAt      DateTime  @updatedAt
+  createdAt      DateTime  @default(now()) @map("created_at")
+  updatedAt      DateTime  @updatedAt @map("updated_at")
 
   @@unique([userId, platform, externalId])
   @@index([userId])
   @@index([channelId])
   @@index([userId, platform])
+  @@map("videos")
 }
