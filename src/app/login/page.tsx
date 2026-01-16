@@ -7,9 +7,11 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { useToast } from "@/components/ui/toast";
 
 export default function LoginPage() {
   const router = useRouter();
+  const { success } = useToast();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [isBusy, setIsBusy] = useState(false);
@@ -37,6 +39,7 @@ export default function LoginPage() {
         return;
       }
 
+      success("Добро пожаловать!");
       router.replace("/");
       router.refresh();
     } catch (e) {

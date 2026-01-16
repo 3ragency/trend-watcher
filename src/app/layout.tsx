@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
 import { TopNav } from "@/components/top-nav";
+import { ToastProvider } from "@/components/ui/toast";
 
 const inter = Inter({ subsets: ["latin", "cyrillic"] });
 
@@ -18,10 +19,12 @@ export default function RootLayout({
   return (
     <html lang="ru" className="dark">
       <body className={inter.className}>
-        <div className="min-h-screen">
-          <TopNav />
-          <main className="mx-auto w-full max-w-7xl p-6">{children}</main>
-        </div>
+        <ToastProvider>
+          <div className="min-h-screen">
+            <TopNav />
+            <main className="mx-auto w-full max-w-7xl p-6">{children}</main>
+          </div>
+        </ToastProvider>
       </body>
     </html>
   );

@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { Youtube, Instagram, Music2, LayoutDashboard } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { LogoutButton } from "@/components/nav-client";
 
 const nav = [
   { href: "/", label: "Dashboard", icon: LayoutDashboard },
@@ -43,6 +44,8 @@ export function TopNav() {
             <Instagram className="h-4 w-4" />
             <span>Apify</span>
           </div>
+          <div className="mx-2 h-6 w-px bg-white/10" />
+          <LogoutButton />
         </nav>
       </div>
     </header>

@@ -15,6 +15,7 @@ import {
   TableRow
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
+import { useToast } from "@/components/ui/toast";
 import type { ChannelDto } from "@/lib/dto";
 
 type Platform = "YOUTUBE" | "INSTAGRAM" | "TIKTOK";
@@ -25,6 +26,7 @@ type Props = {
 
 export function ChannelsClient({ initialChannels }: Props) {
   const router = useRouter();
+  const { success, error } = useToast();
   const [platform, setPlatform] = useState<Platform>("YOUTUBE");
   const [identifier, setIdentifier] = useState("");
   const [isBusy, setIsBusy] = useState(false);
@@ -39,9 +41,16 @@ export function ChannelsClient({ initialChannels }: Props) {
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ platform, identifier })
       });
-      if (!res.ok) throw new Error(await res.text());
+      if (!res.ok) {
+        const text = await res.text();
+        error(text || "Ошибка добавления канала");
+        return;
+      }
       setIdentifier("");
+      success("Канал добавлен");
       router.refresh();
+    } catch (e) {
+      error(e instanceof Error ? e.message : "Ошибка сети");
     } finally {
       setIsBusy(false);
     }
@@ -51,8 +60,16 @@ export function ChannelsClient({ initialChannels }: Props) {
     setIsBusy(true);
     try {
       const res = await fetch(`/api/channels/${id}/fetch`, { method: "POST" });
-      if (!res.ok) throw new Error(await res.text());
+      if (!res.ok) {
+        const text = await res.text();
+        error(text || "Ошибка парсинга");
+        return;
+      }
+      const data = await res.json().catch(() => ({}));
+      success(`Загружено видео: ${data.itemsFetched ?? 0}`);
       router.refresh();
+    } catch (e) {
+      error(e instanceof Error ? e.message : "Ошибка сети");
     } finally {
       setIsBusy(false);
     }
@@ -62,8 +79,15 @@ export function ChannelsClient({ initialChannels }: Props) {
     setIsBusy(true);
     try {
       const res = await fetch(`/api/channels/${id}`, { method: "DELETE" });
-      if (!res.ok) throw new Error(await res.text());
+      if (!res.ok) {
+        const text = await res.text();
+        error(text || "Ошибка удаления");
+        return;
+      }
+      success("Канал удалён");
       router.refresh();
+    } catch (e) {
+      error(e instanceof Error ? e.message : "Ошибка сети");
     } finally {
       setIsBusy(false);
     }
