@@ -1,20 +1,12 @@
 "use client";
 
-import React, { useMemo, useState, type ChangeEvent } from "react";
+import React, { useEffect, useMemo, useState, type ChangeEvent } from "react";
 import { useRouter } from "next/navigation";
 import { Settings, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow
-} from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/components/ui/toast";
 import type { ChannelDto } from "@/lib/dto";
@@ -31,16 +23,38 @@ export function ChannelsClient({ initialChannels }: Props) {
   const [platform, setPlatform] = useState<Platform>("YOUTUBE");
   const [identifier, setIdentifier] = useState("");
   const [isBusy, setIsBusy] = useState(false);
-  
+  const [defaultLimit, setDefaultLimit] = useState(30);
+
   // Fetch settings per channel
   const [fetchSettings, setFetchSettings] = useState<Record<string, { limit: number; showSettings: boolean }>>({});
+  const [storedLimits, setStoredLimits] = useState<Record<string, number>>({});
 
   const channels = useMemo(() => initialChannels, [initialChannels]);
-  
+
+  useEffect(() => {
+    try {
+      const dl = localStorage.getItem("tw:defaultLimit");
+      const n = dl ? parseInt(dl) : NaN;
+      if (Number.isFinite(n)) setDefaultLimit(Math.max(1, Math.min(100, n)));
+
+      const raw = localStorage.getItem("tw:channelLimits");
+      const parsed = raw ? (JSON.parse(raw) as unknown) : {};
+      if (parsed && typeof parsed === "object") {
+        setStoredLimits(parsed as Record<string, number>);
+      }
+    } catch {
+      // ignore
+    }
+  }, []);
+
   function getChannelSettings(id: string) {
-    return fetchSettings[id] ?? { limit: 30, showSettings: false };
+    const existing = fetchSettings[id];
+    if (existing) return existing;
+    const stored = storedLimits[id];
+    const limit = typeof stored === "number" ? stored : defaultLimit;
+    return { limit, showSettings: false };
   }
-  
+
   function toggleSettings(id: string) {
     const current = getChannelSettings(id);
     setFetchSettings((prev) => ({
@@ -48,13 +62,33 @@ export function ChannelsClient({ initialChannels }: Props) {
       [id]: { ...current, showSettings: !current.showSettings }
     }));
   }
-  
+
   function setLimit(id: string, limit: number) {
     const current = getChannelSettings(id);
+    const nextLimit = Math.max(1, Math.min(100, limit));
     setFetchSettings((prev) => ({
       ...prev,
-      [id]: { ...current, limit: Math.max(1, Math.min(100, limit)) }
+      [id]: { ...current, limit: nextLimit }
     }));
+    setStoredLimits((prev) => {
+      const next = { ...prev, [id]: nextLimit };
+      try {
+        localStorage.setItem("tw:channelLimits", JSON.stringify(next));
+      } catch {
+        // ignore
+      }
+      return next;
+    });
+  }
+
+  function setDefaultLimitSafe(limit: number) {
+    const nextLimit = Math.max(1, Math.min(100, limit));
+    setDefaultLimit(nextLimit);
+    try {
+      localStorage.setItem("tw:defaultLimit", String(nextLimit));
+    } catch {
+      // ignore
+    }
   }
 
   async function addChannel() {
@@ -91,7 +125,9 @@ export function ChannelsClient({ initialChannels }: Props) {
         return;
       }
       const data = await res.json().catch(() => ({}));
-      success(`Загружено видео: ${data.itemsFetched ?? 0}`);
+      success(
+        `Загружено видео: ${data.itemsFetched ?? 0} (всего: ${data.itemsTotal ?? 0}, пропущено: ${data.itemsSkipped ?? 0})`
+      );
       router.refresh();
     } catch (e) {
       error(e instanceof Error ? e.message : "Ошибка сети");
@@ -142,8 +178,8 @@ export function ChannelsClient({ initialChannels }: Props) {
   }
 
   return (
-    <div className="flex flex-col gap-6 xl:flex-row">
-      <Card className="w-full xl:w-80 xl:flex-shrink-0">
+    <div className="grid grid-cols-1 gap-6 xl:grid-cols-[360px_1fr]">
+      <Card className="w-full xl:sticky xl:top-6 xl:h-fit">
         <CardHeader>
           <CardTitle>Добавить канал</CardTitle>
         </CardHeader>
@@ -202,110 +238,150 @@ export function ChannelsClient({ initialChannels }: Props) {
         </CardContent>
       </Card>
 
-      <Card className="flex-1 min-w-0">
-        <CardHeader>
-          <CardTitle>Список каналов</CardTitle>
-        </CardHeader>
-        <CardContent className="overflow-x-auto">
-          <Table className="min-w-[600px]">
-            <TableHeader>
-              <TableRow>
-                <TableHead>Платформа</TableHead>
-                <TableHead>Канал</TableHead>
-                <TableHead>Подписчики</TableHead>
-                <TableHead>Видео</TableHead>
-                <TableHead>Просмотры</TableHead>
-                <TableHead>Действия</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {channels.map((c: ChannelDto) => (
-                <TableRow key={c.id}>
-                  <TableCell>
-                    <Badge variant="secondary">{c.platform}</Badge>
-                  </TableCell>
-                  <TableCell>
-                    <div className="font-medium">
-                      {c.displayName ?? c.externalId}
-                    </div>
-                    <div className="text-xs text-muted-foreground">
-                      {c.handle ?? c.url ?? ""}
-                    </div>
-                  </TableCell>
-                  <TableCell>{c.subscribersCount}</TableCell>
-                  <TableCell>{(c.videosCount ?? 0).toString()}</TableCell>
-                  <TableCell>{c.totalViewsCount}</TableCell>
-                  <TableCell>
-                    <div className="space-y-2">
-                      <div className="flex flex-wrap gap-1">
-                        <Button
-                          type="button"
-                          size="sm"
-                          variant="outline"
-                          disabled={isBusy}
-                          onClick={() => toggleSettings(c.id)}
-                          title="Настройки парсинга"
-                        >
-                          <Settings className="h-4 w-4" />
-                        </Button>
-                        <Button
-                          type="button"
-                          size="sm"
-                          disabled={isBusy}
-                          onClick={() => fetchChannel(c.id, getChannelSettings(c.id).limit)}
-                        >
-                          Парсить {getChannelSettings(c.id).limit}
-                        </Button>
-                        <Button
-                          type="button"
-                          size="sm"
-                          variant="outline"
-                          disabled={isBusy}
-                          onClick={() => clearChannelVideos(c.id)}
-                          title="Очистить видео"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                        <Button
-                          type="button"
-                          size="sm"
-                          variant="secondary"
-                          disabled={isBusy}
-                          onClick={() => removeChannel(c.id)}
-                        >
-                          Удалить
-                        </Button>
-                      </div>
-                      {getChannelSettings(c.id).showSettings && (
-                        <div className="flex items-center gap-2 text-xs">
-                          <Label className="text-xs">Лимит:</Label>
-                          <Input
-                            type="number"
-                            className="h-7 w-16 text-xs"
-                            min={1}
-                            max={100}
-                            value={getChannelSettings(c.id).limit}
-                            onChange={(e: React.ChangeEvent<HTMLInputElement>) => setLimit(c.id, parseInt(e.target.value) || 30)}
-                          />
+      <div className="space-y-4">
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between gap-4">
+            <CardTitle>Каналы</CardTitle>
+            <div className="flex items-center gap-2">
+              <Label className="text-xs text-muted-foreground">Лимит по умолчанию</Label>
+              <Input
+                type="number"
+                className="h-8 w-20"
+                min={1}
+                max={100}
+                value={defaultLimit}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setDefaultLimitSafe(parseInt(e.target.value) || 30)}
+              />
+            </div>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-3">
+              {channels.map((c: ChannelDto) => {
+                const s = getChannelSettings(c.id);
+                return (
+                  <Card key={c.id} className="border-border/60">
+                    <CardContent className="p-4">
+                      <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                        <div className="flex min-w-0 items-center gap-3">
+                          <div className="h-10 w-10 flex-shrink-0 overflow-hidden rounded-lg bg-muted">
+                            {c.avatarUrl ? (
+                              <img
+                                src={c.avatarUrl}
+                                alt=""
+                                className="h-full w-full object-cover"
+                              />
+                            ) : null}
+                          </div>
+                          <div className="min-w-0">
+                            <div className="flex items-center gap-2">
+                              <Badge variant="secondary">{c.platform}</Badge>
+                              <div className="truncate font-medium">
+                                {c.displayName ?? c.externalId}
+                              </div>
+                            </div>
+                            <div className="truncate text-xs text-muted-foreground">
+                              {c.handle ?? c.url ?? ""}
+                            </div>
+                          </div>
                         </div>
-                      )}
-                    </div>
-                  </TableCell>
-                </TableRow>
-              ))}
+
+                        <div className="flex flex-col gap-2 md:items-end">
+                          <div className="flex flex-wrap gap-4 text-xs text-muted-foreground">
+                            <div>
+                              <span className="text-foreground">
+                                {c.subscribersCount}
+                              </span>
+                              {" "}
+                              подписч.
+                            </div>
+                            <div>
+                              <span className="text-foreground">
+                                {(c.videosCount ?? 0).toString()}
+                              </span>
+                              {" "}
+                              видео
+                            </div>
+                            <div>
+                              <span className="text-foreground">
+                                {c.totalViewsCount}
+                              </span>
+                              {" "}
+                              просмотров
+                            </div>
+                          </div>
+
+                          <div className="flex flex-wrap gap-1">
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="outline"
+                              disabled={isBusy}
+                              onClick={() => toggleSettings(c.id)}
+                              title="Настройки парсинга"
+                            >
+                              <Settings className="h-4 w-4" />
+                            </Button>
+                            <Button
+                              type="button"
+                              size="sm"
+                              disabled={isBusy}
+                              onClick={() => fetchChannel(c.id, s.limit)}
+                            >
+                              Парсить {s.limit}
+                            </Button>
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="outline"
+                              disabled={isBusy}
+                              onClick={() => clearChannelVideos(c.id)}
+                              title="Очистить видео"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="secondary"
+                              disabled={isBusy}
+                              onClick={() => removeChannel(c.id)}
+                            >
+                              Удалить
+                            </Button>
+                          </div>
+                        </div>
+                      </div>
+
+                      {s.showSettings ? (
+                        <div className="mt-3 flex items-center justify-between gap-3 rounded-lg border border-border/60 bg-muted/20 p-3">
+                          <div className="text-sm">Настройки парсинга</div>
+                          <div className="flex items-center gap-2">
+                            <Label className="text-xs">Лимит</Label>
+                            <Input
+                              type="number"
+                              className="h-8 w-20"
+                              min={1}
+                              max={100}
+                              value={s.limit}
+                              onChange={(e: React.ChangeEvent<HTMLInputElement>) => setLimit(c.id, parseInt(e.target.value) || defaultLimit)}
+                            />
+                          </div>
+                        </div>
+                      ) : null}
+                    </CardContent>
+                  </Card>
+                );
+              })}
+
               {channels.length === 0 ? (
-                <TableRow>
-                  <TableCell colSpan={6} className="py-10 text-center">
-                    <div className="text-sm text-muted-foreground">
-                      Каналов пока нет
-                    </div>
-                  </TableCell>
-                </TableRow>
+                <div className="py-10 text-center text-sm text-muted-foreground">
+                  Каналов пока нет
+                </div>
               ) : null}
-            </TableBody>
-          </Table>
-        </CardContent>
-      </Card>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
     </div>
   );
 }

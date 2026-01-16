@@ -3,6 +3,8 @@ import { ChannelsClient } from "@/components/channels-client";
 import { toChannelDto } from "@/lib/dto";
 import { requirePageUserId } from "@/lib/session";
 
+export const dynamic = "force-dynamic";
+
 export default async function ChannelsPage() {
   const userId = await requirePageUserId();
   const channels = await prisma.channel.findMany({

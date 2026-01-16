@@ -2,6 +2,8 @@ import { prisma } from "@/lib/db";
 import { StatCard } from "@/components/stat-card";
 import { requirePageUserId } from "@/lib/session";
 
+export const dynamic = "force-dynamic";
+
 export default async function Page() {
   const userId = await requirePageUserId();
   const [channelsCount, videosCount] = await Promise.all([

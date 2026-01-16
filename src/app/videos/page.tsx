@@ -3,6 +3,8 @@ import { VideosClient } from "@/components/videos-client";
 import { requirePageUserId } from "@/lib/session";
 import { toVideoDto, toChannelDto } from "@/lib/dto";
 
+export const dynamic = "force-dynamic";
+
 export default async function VideosPage() {
   const userId = await requirePageUserId();
   

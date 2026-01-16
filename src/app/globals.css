@@ -45,7 +45,6 @@ body {
   color: hsl(var(--foreground));
 }
 
-/* Custom scrollbar */
 ::-webkit-scrollbar {
   width: 8px;
   height: 8px;
@@ -65,7 +64,6 @@ body {
   background: hsl(var(--primary) / 0.6);
 }
 
-/* Firefox */
 * {
   scrollbar-width: thin;
   scrollbar-color: hsl(var(--border)) hsl(var(--muted));

@@ -22,7 +22,7 @@ export default function RootLayout({
         <ToastProvider>
           <div className="min-h-screen">
             <TopNav />
-            <main className="mx-auto w-full max-w-7xl p-6">{children}</main>
+            <main className="mx-auto w-full max-w-[1400px] p-6">{children}</main>
           </div>
         </ToastProvider>
       </body>

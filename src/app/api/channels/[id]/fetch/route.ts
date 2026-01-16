@@ -185,15 +185,39 @@ export async function POST(
           resultsLimit: limit
         };
 
+    console.log(
+      `[fetch] apify start userId=${userId} channelId=${channel.id} platform=${channel.platform} actorId=${actorId} username=${username} limit=${limit}`
+    );
+    console.log(`[fetch] apify input channelId=${channel.id} ${JSON.stringify(apifyInput)}`);
+
     const datasetId = await runApifyActor(actorId, apifyInput);
+
+    console.log(
+      `[fetch] apify run created userId=${userId} channelId=${channel.id} datasetId=${datasetId}`
+    );
 
     const items = await readApifyDatasetItems(datasetId, limit);
 
+    console.log(
+      `[fetch] apify dataset read userId=${userId} channelId=${channel.id} datasetId=${datasetId} items=${items.length}`
+    );
+    if (items.length > 0) {
+      const it: any = items[0];
+      const keys = it && typeof it === "object" ? Object.keys(it).slice(0, 40) : [];
+      console.log(
+        `[fetch] apify sample item channelId=${channel.id} datasetId=${datasetId} keys=${keys.join(",")}`
+      );
+    }
+
     let itemsFetched = 0;
+    let itemsSkipped = 0;
 
     for (const it of items) {
       const v = guessApifyVideo(it);
-      if (!v.externalId || !v.url) continue;
+      if (!v.externalId || !v.url) {
+        itemsSkipped += 1;
+        continue;
+      }
 
       await prisma.video.upsert({
         where: {
@@ -243,7 +267,17 @@ export async function POST(
       }
     });
 
-    return NextResponse.json({ ok: true, itemsFetched, datasetId });
+    console.log(
+      `[fetch] apify persisted userId=${userId} channelId=${channel.id} datasetId=${datasetId} itemsFetched=${itemsFetched} itemsSkipped=${itemsSkipped}`
+    );
+
+    return NextResponse.json({
+      ok: true,
+      itemsFetched,
+      itemsSkipped,
+      itemsTotal: items.length,
+      datasetId
+    });
   } catch (e) {
     const message = e instanceof Error ? e.message : String(e);
     console.error(

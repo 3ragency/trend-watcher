@@ -45,9 +45,17 @@ export function guessApifyVideo(item: any) {
     item?.postId ??
     item?.shortCode ??
     item?.code ??
+    item?.awemeId ??
+    item?.aweme_id ??
     item?.url;
 
-  const url = item?.url ?? item?.videoUrl ?? item?.postUrl;
+  const url =
+    item?.url ??
+    item?.videoUrl ??
+    item?.webVideoUrl ??
+    item?.postUrl ??
+    item?.permalink ??
+    item?.webVideoUrl;
 
   const title = item?.title ?? item?.caption ?? item?.text ?? item?.desc;
   const description = item?.description ?? item?.caption ?? item?.text;
@@ -57,17 +65,33 @@ export function guessApifyVideo(item: any) {
     item?.thumbnail ??
     item?.displayUrl ??
     item?.imageUrl ??
-    item?.videoThumbnail;
+    item?.videoThumbnail ??
+    item?.coverUrl ??
+    item?.cover ??
+    item?.coverImage ??
+    item?.videoMeta?.coverUrl ??
+    item?.videoMeta?.cover;
 
   const viewsCount =
     item?.views ??
     item?.viewCount ??
     item?.playCount ??
     item?.videoPlayCount ??
-    item?.plays;
+    item?.plays ??
+    item?.videoViewCount ??
+    item?.stats?.playCount;
 
-  const likesCount = item?.likes ?? item?.likeCount ?? item?.likesCount;
-  const commentsCount = item?.comments ?? item?.commentCount ?? item?.commentsCount;
+  const likesCount =
+    item?.likes ??
+    item?.likeCount ??
+    item?.likesCount ??
+    item?.diggCount ??
+    item?.stats?.diggCount;
+  const commentsCount =
+    item?.comments ??
+    item?.commentCount ??
+    item?.commentsCount ??
+    item?.stats?.commentCount;
 
   const publishedAt =
     item?.publishedAt ??
