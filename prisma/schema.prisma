@@ -8,17 +8,11 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-enum Platform {
-  YOUTUBE
-  INSTAGRAM
-  TIKTOK
-}
-
 model Channel {
   id               String    @id @default(uuid()) @db.Uuid
   userId           String    @db.Uuid @map("user_id")
   user             User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  platform         Platform
+  platform         String    @db.Text
   externalId       String    @map("external_id")
   displayName      String?   @map("display_name")
   handle           String?
@@ -62,7 +56,7 @@ model Video {
   id             String    @id @default(uuid()) @db.Uuid
   userId         String    @db.Uuid @map("user_id")
   user           User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  platform       Platform
+  platform       String    @db.Text
   externalId     String    @map("external_id")
   url            String
   title          String?
