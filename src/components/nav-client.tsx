@@ -23,9 +23,9 @@ export function LogoutButton() {
 
   return (
     <Button
-      variant="ghost"
+      variant="secondary"
       size="sm"
-      className="gap-2 text-secondary-foreground/70 hover:text-secondary-foreground"
+      className="gap-2 bg-transparent text-secondary-foreground/70 hover:bg-white/5 hover:text-secondary-foreground"
       onClick={handleLogout}
     >
       <LogOut className="h-4 w-4" />
