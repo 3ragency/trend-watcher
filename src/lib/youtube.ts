@@ -15,8 +15,15 @@ async function ytGet<T>(path: string, params: Record<string, string | number | u
   const env = getEnv();
   if (!env.YOUTUBE_API_KEY) throw new Error("YOUTUBE_API_KEY is not set");
   const url = `${BASE}/${path}?${toQuery({ ...params, key: env.YOUTUBE_API_KEY })}`;
+  const safeUrl = url.replace(/([?&]key=)[^&]+/, "$1***");
+  console.log(`[youtube] GET ${safeUrl}`);
+
   const res = await fetch(url);
-  if (!res.ok) throw new Error(`YouTube API error: ${res.status} ${await res.text()}`);
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    console.error(`[youtube] API error ${res.status} ${res.statusText}: ${safeUrl} :: ${text.slice(0, 2000)}`);
+    throw new Error(`YouTube API error: ${res.status} ${text}`);
+  }
   return (await res.json()) as T;
 }
 
@@ -89,9 +96,10 @@ export async function resolveYouTubeChannel(identifier: string) {
   const { channelId, handle } = extractYouTubeChannelId(identifier);
   if (channelId) return { channelId };
   if (handle) {
+    const forHandle = handle.startsWith("@") ? handle : `@${handle}`;
     const data = await ytGet<YtChannels>("channels", {
       part: "snippet,statistics",
-      forHandle: handle,
+      forHandle,
       maxResults: 1
     });
     const first = data.items?.[0];
@@ -102,6 +110,7 @@ export async function resolveYouTubeChannel(identifier: string) {
 }
 
 export async function fetchYouTubeChannelWithVideos(channelId: string, limit: number) {
+  console.log(`[youtube] fetchYouTubeChannelWithVideos channelId=${channelId} limit=${limit}`);
   const channelData = await ytGet<YtChannels>("channels", {
     part: "snippet,statistics",
     id: channelId,
@@ -109,6 +118,7 @@ export async function fetchYouTubeChannelWithVideos(channelId: string, limit: nu
   });
   const channel = channelData.items?.[0];
   if (!channel) throw new Error("YouTube channel not found");
+  console.log(`[youtube] channel resolved id=${channel.id} title=${channel.snippet?.title ?? ""}`);
 
   const searchData = await ytGet<YtSearch>("search", {
     part: "id",
@@ -118,18 +128,25 @@ export async function fetchYouTubeChannelWithVideos(channelId: string, limit: nu
     maxResults: limit
   });
 
+  console.log(`[youtube] search returned ${(searchData.items ?? []).length} items`);
+
   const ids = (searchData.items ?? [])
     .map((i) => i.id?.videoId)
     .filter((x): x is string => Boolean(x));
 
   if (ids.length === 0) {
+    console.log("[youtube] search returned 0 video ids");
     return { channel, videos: [] as YtVideos["items"] };
   }
+
+  console.log(`[youtube] loading videos count=${ids.length}`);
 
   const videosData = await ytGet<YtVideos>("videos", {
     part: "snippet,statistics,contentDetails",
     id: ids.join(",")
   });
+
+  console.log(`[youtube] videos loaded count=${(videosData.items ?? []).length}`);
 
   return { channel, videos: videosData.items ?? [] };
 }

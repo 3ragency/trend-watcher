@@ -55,9 +55,16 @@ export async function POST(
 
   try {
     if (channel.platform === "YOUTUBE") {
+      console.log(
+        `[fetch] youtube start userId=${userId} channelId=${channel.id} externalId=${channel.externalId} limit=${limit}`
+      );
       const { channel: ytChannel, videos } = await fetchYouTubeChannelWithVideos(
         channel.externalId,
         limit
+      );
+
+      console.log(
+        `[fetch] youtube done externalId=${channel.externalId} videos=${(videos ?? []).length} title=${ytChannel.snippet?.title ?? ""}`
       );
 
       const avatarUrl =
@@ -84,6 +91,7 @@ export async function POST(
 
       let itemsFetched = 0;
       for (const v of videos ?? []) {
+        if (!v?.id) continue;
         const url = `https://www.youtube.com/watch?v=${v.id}`;
         const thumbnailUrl =
           v.snippet?.thumbnails?.high?.url ??
@@ -134,6 +142,9 @@ export async function POST(
 
         itemsFetched += 1;
       }
+      console.log(
+        `[fetch] youtube persisted userId=${userId} channelId=${channel.id} itemsFetched=${itemsFetched}`
+      );
       return NextResponse.json({ ok: true, itemsFetched });
     }
 
@@ -209,8 +220,12 @@ export async function POST(
 
     return NextResponse.json({ ok: true, itemsFetched, datasetId });
   } catch (e) {
+    const message = e instanceof Error ? e.message : String(e);
+    console.error(
+      `[fetch] failed userId=${userId} channelId=${channel.id} platform=${channel.platform} externalId=${channel.externalId} :: ${message}`
+    );
     return NextResponse.json(
-      { error: e instanceof Error ? e.message : String(e) },
+      { error: message },
       { status: 500 }
     );
   }
