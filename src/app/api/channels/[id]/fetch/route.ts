@@ -158,19 +158,31 @@ export async function POST(
         ? env.APIFY_INSTAGRAM_ACTOR_ID
         : env.APIFY_TIKTOK_ACTOR_ID;
 
-    const profileUrl = channel.url ?? channel.handle ?? channel.externalId;
+    // Extract username from URL or handle
+    const rawProfile = channel.handle ?? channel.url ?? channel.externalId;
+    // Remove @ prefix and extract username from URL if needed
+    let username = rawProfile.replace(/^@/, "");
+    // Extract from Instagram URL: instagram.com/username or instagram.com/username/
+    const igMatch = username.match(/instagram\.com\/([^\/\?]+)/i);
+    if (igMatch) username = igMatch[1];
+    // Extract from TikTok URL: tiktok.com/@username
+    const ttMatch = username.match(/tiktok\.com\/@?([^\/\?]+)/i);
+    if (ttMatch) username = ttMatch[1];
     
-    // TikTok actor expects different input format
+    // Build input based on platform
     const apifyInput = channel.platform === "TIKTOK"
       ? {
-          profiles: [profileUrl],
-          resultsPerPage: limit,
-          maxProfilesPerQuery: 1
+          profiles: [username],
+          excludePinnedPosts: false,
+          shouldDownloadVideos: false,
+          shouldDownloadCovers: false,
+          shouldDownloadAvatars: false,
+          shouldDownloadSlideshowImages: false,
+          shouldDownloadSubtitles: false
         }
       : {
-          startUrls: [{ url: profileUrl }],
-          resultsLimit: limit,
-          maxItems: limit
+          username: [username],
+          resultsLimit: limit
         };
 
     const datasetId = await runApifyActor(actorId, apifyInput);

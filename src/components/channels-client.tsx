@@ -142,8 +142,8 @@ export function ChannelsClient({ initialChannels }: Props) {
   }
 
   return (
-    <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
-      <Card className="lg:col-span-1">
+    <div className="flex flex-col gap-6 xl:flex-row">
+      <Card className="w-full xl:w-80 xl:flex-shrink-0">
         <CardHeader>
           <CardTitle>Добавить канал</CardTitle>
         </CardHeader>
@@ -202,12 +202,12 @@ export function ChannelsClient({ initialChannels }: Props) {
         </CardContent>
       </Card>
 
-      <Card className="lg:col-span-2">
+      <Card className="flex-1 min-w-0">
         <CardHeader>
           <CardTitle>Список каналов</CardTitle>
         </CardHeader>
-        <CardContent>
-          <Table>
+        <CardContent className="overflow-x-auto">
+          <Table className="min-w-[600px]">
             <TableHeader>
               <TableRow>
                 <TableHead>Платформа</TableHead>
@@ -215,7 +215,7 @@ export function ChannelsClient({ initialChannels }: Props) {
                 <TableHead>Подписчики</TableHead>
                 <TableHead>Видео</TableHead>
                 <TableHead>Просмотры</TableHead>
-                <TableHead className="text-right">Действия</TableHead>
+                <TableHead>Действия</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -235,9 +235,9 @@ export function ChannelsClient({ initialChannels }: Props) {
                   <TableCell>{c.subscribersCount}</TableCell>
                   <TableCell>{(c.videosCount ?? 0).toString()}</TableCell>
                   <TableCell>{c.totalViewsCount}</TableCell>
-                  <TableCell className="text-right">
+                  <TableCell>
                     <div className="space-y-2">
-                      <div className="flex justify-end gap-1">
+                      <div className="flex flex-wrap gap-1">
                         <Button
                           type="button"
                           size="sm"
@@ -277,7 +277,7 @@ export function ChannelsClient({ initialChannels }: Props) {
                         </Button>
                       </div>
                       {getChannelSettings(c.id).showSettings && (
-                        <div className="flex items-center justify-end gap-2 text-xs">
+                        <div className="flex items-center gap-2 text-xs">
                           <Label className="text-xs">Лимит:</Label>
                           <Input
                             type="number"
