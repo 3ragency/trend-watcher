@@ -39,7 +39,7 @@ function parseMaybeDate(v: unknown): Date | undefined {
 }
 
 export async function POST(
-  _req: Request,
+  req: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
   const userId = await getApiUserId();
@@ -51,7 +51,11 @@ export async function POST(
   if (!channel) return NextResponse.json({ error: "Channel not found" }, { status: 404 });
 
   const env = getEnv();
-  const limit = env.FETCH_LIMIT_PER_CHANNEL;
+  
+  // Allow custom limit via query param
+  const url = new URL(req.url);
+  const limitParam = url.searchParams.get("limit");
+  const limit = limitParam ? Math.min(100, Math.max(1, parseInt(limitParam) || env.FETCH_LIMIT_PER_CHANNEL)) : env.FETCH_LIMIT_PER_CHANNEL;
 
   try {
     if (channel.platform === "YOUTUBE") {
@@ -155,12 +159,21 @@ export async function POST(
         : env.APIFY_TIKTOK_ACTOR_ID;
 
     const profileUrl = channel.url ?? channel.handle ?? channel.externalId;
+    
+    // TikTok actor expects different input format
+    const apifyInput = channel.platform === "TIKTOK"
+      ? {
+          profiles: [profileUrl],
+          resultsPerPage: limit,
+          maxProfilesPerQuery: 1
+        }
+      : {
+          startUrls: [{ url: profileUrl }],
+          resultsLimit: limit,
+          maxItems: limit
+        };
 
-    const datasetId = await runApifyActor(actorId, {
-      startUrls: [{ url: profileUrl }],
-      resultsLimit: limit,
-      maxItems: limit
-    });
+    const datasetId = await runApifyActor(actorId, apifyInput);
 
     const items = await readApifyDatasetItems(datasetId, limit);
 

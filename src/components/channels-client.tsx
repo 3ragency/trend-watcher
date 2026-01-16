@@ -1,7 +1,8 @@
 "use client";
 
-import { useMemo, useState, type ChangeEvent } from "react";
+import React, { useMemo, useState, type ChangeEvent } from "react";
 import { useRouter } from "next/navigation";
+import { Settings, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -30,8 +31,31 @@ export function ChannelsClient({ initialChannels }: Props) {
   const [platform, setPlatform] = useState<Platform>("YOUTUBE");
   const [identifier, setIdentifier] = useState("");
   const [isBusy, setIsBusy] = useState(false);
+  
+  // Fetch settings per channel
+  const [fetchSettings, setFetchSettings] = useState<Record<string, { limit: number; showSettings: boolean }>>({});
 
   const channels = useMemo(() => initialChannels, [initialChannels]);
+  
+  function getChannelSettings(id: string) {
+    return fetchSettings[id] ?? { limit: 30, showSettings: false };
+  }
+  
+  function toggleSettings(id: string) {
+    const current = getChannelSettings(id);
+    setFetchSettings((prev) => ({
+      ...prev,
+      [id]: { ...current, showSettings: !current.showSettings }
+    }));
+  }
+  
+  function setLimit(id: string, limit: number) {
+    const current = getChannelSettings(id);
+    setFetchSettings((prev) => ({
+      ...prev,
+      [id]: { ...current, limit: Math.max(1, Math.min(100, limit)) }
+    }));
+  }
 
   async function addChannel() {
     setIsBusy(true);
@@ -56,10 +80,11 @@ export function ChannelsClient({ initialChannels }: Props) {
     }
   }
 
-  async function fetchChannel(id: string) {
+  async function fetchChannel(id: string, limit?: number) {
     setIsBusy(true);
     try {
-      const res = await fetch(`/api/channels/${id}/fetch`, { method: "POST" });
+      const url = limit ? `/api/channels/${id}/fetch?limit=${limit}` : `/api/channels/${id}/fetch`;
+      const res = await fetch(url, { method: "POST" });
       if (!res.ok) {
         const text = await res.text();
         error(text || "Ошибка парсинга");
@@ -67,6 +92,29 @@ export function ChannelsClient({ initialChannels }: Props) {
       }
       const data = await res.json().catch(() => ({}));
       success(`Загружено видео: ${data.itemsFetched ?? 0}`);
+      router.refresh();
+    } catch (e) {
+      error(e instanceof Error ? e.message : "Ошибка сети");
+    } finally {
+      setIsBusy(false);
+    }
+  }
+  
+  async function clearChannelVideos(id: string) {
+    setIsBusy(true);
+    try {
+      const res = await fetch("/api/videos", {
+        method: "DELETE",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ channelIds: [id] })
+      });
+      if (!res.ok) {
+        const text = await res.text();
+        error(text || "Ошибка удаления");
+        return;
+      }
+      const data = await res.json().catch(() => ({}));
+      success(`Удалено видео: ${data.deleted ?? 0}`);
       router.refresh();
     } catch (e) {
       error(e instanceof Error ? e.message : "Ошибка сети");
@@ -188,24 +236,59 @@ export function ChannelsClient({ initialChannels }: Props) {
                   <TableCell>{(c.videosCount ?? 0).toString()}</TableCell>
                   <TableCell>{c.totalViewsCount}</TableCell>
                   <TableCell className="text-right">
-                    <div className="flex justify-end gap-2">
-                      <Button
-                        type="button"
-                        size="sm"
-                        disabled={isBusy}
-                        onClick={() => fetchChannel(c.id)}
-                      >
-                        Парсить 30 видео
-                      </Button>
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant="secondary"
-                        disabled={isBusy}
-                        onClick={() => removeChannel(c.id)}
-                      >
-                        Удалить
-                      </Button>
+                    <div className="space-y-2">
+                      <div className="flex justify-end gap-1">
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          disabled={isBusy}
+                          onClick={() => toggleSettings(c.id)}
+                          title="Настройки парсинга"
+                        >
+                          <Settings className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          type="button"
+                          size="sm"
+                          disabled={isBusy}
+                          onClick={() => fetchChannel(c.id, getChannelSettings(c.id).limit)}
+                        >
+                          Парсить {getChannelSettings(c.id).limit}
+                        </Button>
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          disabled={isBusy}
+                          onClick={() => clearChannelVideos(c.id)}
+                          title="Очистить видео"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="secondary"
+                          disabled={isBusy}
+                          onClick={() => removeChannel(c.id)}
+                        >
+                          Удалить
+                        </Button>
+                      </div>
+                      {getChannelSettings(c.id).showSettings && (
+                        <div className="flex items-center justify-end gap-2 text-xs">
+                          <Label className="text-xs">Лимит:</Label>
+                          <Input
+                            type="number"
+                            className="h-7 w-16 text-xs"
+                            min={1}
+                            max={100}
+                            value={getChannelSettings(c.id).limit}
+                            onChange={(e: React.ChangeEvent<HTMLInputElement>) => setLimit(c.id, parseInt(e.target.value) || 30)}
+                          />
+                        </div>
+                      )}
                     </div>
                   </TableCell>
                 </TableRow>
