@@ -1,7 +1,7 @@
 "use client";
 
 import { createContext, useCallback, useContext, useState, type ReactNode } from "react";
-import { X } from "lucide-react";
+import { X, CheckCircle2, AlertCircle, Info as InfoIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 type ToastType = "success" | "error" | "info";
@@ -48,21 +48,24 @@ export function ToastProvider({ children }: { children: ReactNode }) {
   return (
     <ToastContext.Provider value={value}>
       {children}
-      <div className="fixed bottom-4 right-4 z-50 flex flex-col gap-2">
+      <div className="fixed bottom-6 right-6 z-[100] flex flex-col gap-3 pointer-events-none">
         {toasts.map((t) => (
           <div
             key={t.id}
             className={cn(
-              "flex items-center gap-3 rounded-lg px-4 py-3 text-sm shadow-lg backdrop-blur",
-              t.type === "success" && "bg-green-600/90 text-white",
-              t.type === "error" && "bg-red-600/90 text-white",
-              t.type === "info" && "bg-zinc-800/90 text-white"
+              "pointer-events-auto flex items-center gap-3 rounded-xl border border-white/10 bg-zinc-900/80 p-4 text-sm shadow-2xl backdrop-blur-xl transition-all animate-in slide-in-from-right-4 duration-300",
+              "min-w-[300px] max-w-md"
             )}
           >
-            <span className="flex-1">{t.message}</span>
+            <div className="shrink-0">
+              {t.type === "success" && <CheckCircle2 className="h-5 w-5 text-emerald-500" />}
+              {t.type === "error" && <AlertCircle className="h-5 w-5 text-rose-500" />}
+              {t.type === "info" && <InfoIcon className="h-5 w-5 text-blue-500" />}
+            </div>
+            <span className="flex-1 font-medium text-zinc-100">{t.message}</span>
             <button
               type="button"
-              className="opacity-70 hover:opacity-100"
+              className="ml-2 shrink-0 rounded-md p-1 text-zinc-500 transition-colors hover:bg-zinc-800 hover:text-zinc-200"
               onClick={() => removeToast(t.id)}
             >
               <X className="h-4 w-4" />

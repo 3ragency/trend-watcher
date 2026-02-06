@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>YouTube Transcript Test</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            max-width: 1200px;
+            margin: 40px auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 12px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #333;
+            margin-bottom: 30px;
+        }
+        .input-group {
+            margin-bottom: 20px;
+        }
+        label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 600;
+            color: #555;
+        }
+        input, select {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            font-size: 14px;
+        }
+        button {
+            background: #0070f3;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 16px;
+            font-weight: 600;
+        }
+        button:hover {
+            background: #0051cc;
+        }
+        button:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+        .result {
+            margin-top: 30px;
+            padding: 20px;
+            background: #f8f9fa;
+            border-radius: 6px;
+            border-left: 4px solid #0070f3;
+        }
+        .error {
+            border-left-color: #e00;
+            background: #fff0f0;
+        }
+        .success {
+            border-left-color: #0a0;
+        }
+        .transcript-entry {
+            margin-bottom: 15px;
+            padding: 10px;
+            background: white;
+            border-radius: 4px;
+        }
+        .time {
+            color: #666;
+            font-size: 12px;
+            margin-bottom: 5px;
+        }
+        .full-text {
+            margin-top: 20px;
+            padding: 15px;
+            background: white;
+            border-radius: 6px;
+            line-height: 1.6;
+        }
+        pre {
+            background: #282c34;
+            color: #abb2bf;
+            padding: 15px;
+            border-radius: 6px;
+            overflow-x: auto;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🎬 YouTube Transcript API Test</h1>
+        
+        <div class="input-group">
+            <label for="videoId">Video ID or URL:</label>
+            <input type="text" id="videoId" placeholder="dQw4w9WgXcQ or https://youtube.com/watch?v=..." 
+                   value="dQw4w9WgXcQ">
+        </div>
+
+        <div class="input-group">
+            <label for="language">Language Priority (comma-separated):</label>
+            <input type="text" id="language" placeholder="ru,en" value="ru,en">
+        </div>
+
+        <button onclick="fetchTranscript()">Get Transcript</button>
+        <button onclick="listAvailable()">List Available Transcripts</button>
+
+        <div id="result"></div>
+    </div>
+
+    <script>
+        async function fetchTranscript() {
+            const videoId = document.getElementById('videoId').value.trim();
+            const languages = document.getElementById('language').value.split(',').map(l => l.trim());
+            const resultDiv = document.getElementById('result');
+
+            if (!videoId) {
+                showError('Please enter a video ID or URL');
+                return;
+            }
+
+            resultDiv.innerHTML = '<div class="result">Loading...</div>';
+
+            try {
+                const response = await fetch('/api/youtube/transcript', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ videoId, languages })
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    showSuccess(data);
+                } else {
+                    showError(data.error || 'Unknown error', data.error_code);
+                }
+            } catch (error) {
+                showError(error.message);
+            }
+        }
+
+        async function listAvailable() {
+            const videoId = document.getElementById('videoId').value.trim();
+            const resultDiv = document.getElementById('result');
+
+            if (!videoId) {
+                showError('Please enter a video ID or URL');
+                return;
+            }
+
+            resultDiv.innerHTML = '<div class="result">Loading...</div>';
+
+            try {
+                const response = await fetch('/api/youtube/transcript', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ videoId, listAvailable: true })
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    showAvailable(data);
+                } else {
+                    showError(data.error || 'Unknown error', data.error_code);
+                }
+            } catch (error) {
+                showError(error.message);
+            }
+        }
+
+        function showSuccess(data) {
+            const resultDiv = document.getElementById('result');
+            
+            let html = `
+                <div class="result success">
+                    <h3>✅ Transcript Retrieved</h3>
+                    <p><strong>Video ID:</strong> ${data.video_id}</p>
+                    <p><strong>Language:</strong> ${data.language_name} (${data.language})</p>
+                    <p><strong>Type:</strong> ${data.type}</p>
+                    <p><strong>Total Entries:</strong> ${data.total_entries}</p>
+
+                    <h4>Full Text:</h4>
+                    <div class="full-text">${data.full_text}</div>
+
+                    <h4>First 10 Entries with Timestamps:</h4>
+            `;
+
+            data.transcript.slice(0, 10).forEach(entry => {
+                html += `
+                    <div class="transcript-entry">
+                        <div class="time">${formatTime(entry.start)} - ${formatTime(entry.start + entry.duration)}</div>
+                        <div>${entry.text}</div>
+                    </div>
+                `;
+            });
+
+            if (data.transcript.length > 10) {
+                html += `<p><em>... and ${data.transcript.length - 10} more entries</em></p>`;
+            }
+
+            html += `
+                    <h4>Raw JSON:</h4>
+                    <pre>${JSON.stringify(data, null, 2)}</pre>
+                </div>
+            `;
+
+            resultDiv.innerHTML = html;
+        }
+
+        function showAvailable(data) {
+            const resultDiv = document.getElementById('result');
+            
+            let html = `
+                <div class="result success">
+                    <h3>📋 Available Transcripts</h3>
+                    <p><strong>Video ID:</strong> ${data.video_id}</p>
+                    <p><strong>Total:</strong> ${data.total}</p>
+
+                    <h4>Transcripts:</h4>
+            `;
+
+            data.transcripts.forEach(transcript => {
+                const badge = transcript.is_generated ? '🤖 Auto' : '✍️ Manual';
+                html += `
+                    <div class="transcript-entry">
+                        <strong>${transcript.language}</strong> (${transcript.language_code}) 
+                        - ${badge}
+                        ${transcript.is_translatable ? '🌐 Translatable' : ''}
+                    </div>
+                `;
+            });
+
+            html += `
+                    <h4>Raw JSON:</h4>
+                    <pre>${JSON.stringify(data, null, 2)}</pre>
+                </div>
+            `;
+
+            resultDiv.innerHTML = html;
+        }
+
+        function showError(message, code = '') {
+            const resultDiv = document.getElementById('result');
+            resultDiv.innerHTML = `
+                <div class="result error">
+                    <h3>❌ Error</h3>
+                    ${code ? `<p><strong>Code:</strong> ${code}</p>` : ''}
+                    <p><strong>Message:</strong> ${message}</p>
+                </div>
+            `;
+        }
+
+        function formatTime(seconds) {
+            const mins = Math.floor(seconds / 60);
+            const secs = Math.floor(seconds % 60);
+            return `${mins}:${secs.toString().padStart(2, '0')}`;
+        }
+    </script>
+</body>
+</html>

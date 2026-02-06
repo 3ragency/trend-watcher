@@ -29,6 +29,7 @@ model Channel {
   subscribersCount BigInt?   @map("subscribers_count")
   totalViewsCount  BigInt?   @map("total_views_count")
   videosCount      Int?      @map("videos_count")
+  nextPageToken    String?   @map("next_page_token")
   lastFetchedAt    DateTime? @map("last_fetched_at")
   raw              Json?
 
@@ -52,6 +53,7 @@ model User {
 
   channels     Channel[]
   videos       Video[]
+  favorites    Favorite[]
 
   createdAt    DateTime    @default(now()) @map("created_at")
   updatedAt    DateTime    @updatedAt @map("updated_at")
@@ -76,6 +78,7 @@ model Video {
   likesCount      BigInt?   @map("likes_count")
   commentsCount   BigInt?   @map("comments_count")
   durationSeconds Int?      @map("duration_seconds")
+  isShort        Boolean   @default(false) @map("is_short")
 
   raw            Json?
 
@@ -90,4 +93,27 @@ model Video {
   @@index([channelId])
   @@index([userId, platform])
   @@map("videos")
+}
+
+model Favorite {
+  id              String   @id @default(uuid()) @db.Uuid
+  userId          String   @db.Uuid @map("user_id")
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  platform        Platform @default(YOUTUBE)
+  videoId         String   @map("video_id")
+  title           String?
+  thumbnailUrl    String?  @map("thumbnail_url")
+  channelName     String?  @map("channel_name")
+  viewsCount      String?  @map("views_count")
+  likesCount      String?  @map("likes_count")
+  commentsCount   String?  @map("comments_count")
+  durationSeconds Int?     @map("duration_seconds")
+  transcript      String?  @db.Text
+
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  @@unique([userId, platform, videoId])
+  @@index([userId])
+  @@index([userId, platform])
+  @@map("favorites")
 }

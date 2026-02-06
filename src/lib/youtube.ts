@@ -68,8 +68,13 @@ type YtChannels = {
   }>;
 };
 
-type YtSearch = {
-  items?: Array<{ id?: { videoId?: string } }>;
+type YtPlaylistItems = {
+  items?: Array<{
+    snippet?: {
+      resourceId?: { videoId?: string };
+    };
+  }>;
+  nextPageToken?: string;
 };
 
 type YtVideos = {
@@ -109,8 +114,12 @@ export async function resolveYouTubeChannel(identifier: string) {
   return { channelId: identifier.trim() };
 }
 
-export async function fetchYouTubeChannelWithVideos(channelId: string, limit: number) {
-  console.log(`[youtube] fetchYouTubeChannelWithVideos channelId=${channelId} limit=${limit}`);
+export async function fetchYouTubeChannelWithVideos(
+  channelId: string,
+  limit: number,
+  pageToken?: string
+) {
+  console.log(`[youtube] fetchYouTubeChannelWithVideos channelId=${channelId} limit=${limit} pageToken=${pageToken ?? "none"}`);
   const channelData = await ytGet<YtChannels>("channels", {
     part: "snippet,statistics",
     id: channelId,
@@ -120,23 +129,30 @@ export async function fetchYouTubeChannelWithVideos(channelId: string, limit: nu
   if (!channel) throw new Error("YouTube channel not found");
   console.log(`[youtube] channel resolved id=${channel.id} title=${channel.snippet?.title ?? ""}`);
 
-  const searchData = await ytGet<YtSearch>("search", {
-    part: "id",
-    channelId,
-    order: "date",
-    type: "video",
+  // Convert channel ID to uploads playlist ID (replace UC with UU)
+  const uploadsPlaylistId = channelId.replace(/^UC/, "UU");
+
+  const playlistParams: Record<string, string | number | undefined> = {
+    part: "snippet",
+    playlistId: uploadsPlaylistId,
     maxResults: limit
-  });
+  };
 
-  console.log(`[youtube] search returned ${(searchData.items ?? []).length} items`);
+  if (pageToken) {
+    playlistParams.pageToken = pageToken;
+  }
 
-  const ids = (searchData.items ?? [])
-    .map((i) => i.id?.videoId)
+  const playlistData = await ytGet<YtPlaylistItems>("playlistItems", playlistParams);
+
+  console.log(`[youtube] playlistItems returned ${(playlistData.items ?? []).length} items, nextPageToken=${playlistData.nextPageToken ?? "none"}`);
+
+  const ids = (playlistData.items ?? [])
+    .map((i) => i.snippet?.resourceId?.videoId)
     .filter((x): x is string => Boolean(x));
 
   if (ids.length === 0) {
-    console.log("[youtube] search returned 0 video ids");
-    return { channel, videos: [] as YtVideos["items"] };
+    console.log("[youtube] playlistItems returned 0 video ids");
+    return { channel, videos: [] as YtVideos["items"], nextPageToken: playlistData.nextPageToken };
   }
 
   console.log(`[youtube] loading videos count=${ids.length}`);
@@ -148,5 +164,65 @@ export async function fetchYouTubeChannelWithVideos(channelId: string, limit: nu
 
   console.log(`[youtube] videos loaded count=${(videosData.items ?? []).length}`);
 
-  return { channel, videos: videosData.items ?? [] };
+  return { channel, videos: videosData.items ?? [], nextPageToken: playlistData.nextPageToken };
 }
+
+/**
+ * Fetch YouTube Shorts for a channel using the unofficial UUSH playlist.
+ * YouTube Shorts are stored in a hidden playlist accessible by replacing "UC" with "UUSH" in the channel ID.
+ */
+export async function fetchYouTubeChannelShorts(
+  channelId: string,
+  limit: number,
+  pageToken?: string
+) {
+  console.log(`[youtube] fetchYouTubeChannelShorts channelId=${channelId} limit=${limit} pageToken=${pageToken ?? "none"}`);
+
+  // Convert channel ID to Shorts playlist ID (replace UC with UUSH)
+  const shortsPlaylistId = channelId.replace(/^UC/, "UUSH");
+
+  const playlistParams: Record<string, string | number | undefined> = {
+    part: "snippet",
+    playlistId: shortsPlaylistId,
+    maxResults: limit
+  };
+
+  if (pageToken) {
+    playlistParams.pageToken = pageToken;
+  }
+
+  try {
+    const playlistData = await ytGet<YtPlaylistItems>("playlistItems", playlistParams);
+
+    console.log(`[youtube] shortsPlaylistItems returned ${(playlistData.items ?? []).length} items, nextPageToken=${playlistData.nextPageToken ?? "none"}`);
+
+    const ids = (playlistData.items ?? [])
+      .map((i) => i.snippet?.resourceId?.videoId)
+      .filter((x): x is string => Boolean(x));
+
+    if (ids.length === 0) {
+      console.log("[youtube] shortsPlaylistItems returned 0 video ids");
+      return { shorts: [] as YtVideos["items"], nextPageToken: playlistData.nextPageToken };
+    }
+
+    console.log(`[youtube] loading shorts count=${ids.length}`);
+
+    const videosData = await ytGet<YtVideos>("videos", {
+      part: "snippet,statistics,contentDetails",
+      id: ids.join(",")
+    });
+
+    console.log(`[youtube] shorts loaded count=${(videosData.items ?? []).length}`);
+
+    return { shorts: videosData.items ?? [], nextPageToken: playlistData.nextPageToken };
+  } catch (err) {
+    // If the UUSH playlist doesn't exist (404), return empty result
+    const message = err instanceof Error ? err.message : String(err);
+    if (message.includes("404") || message.includes("playlistNotFound")) {
+      console.log(`[youtube] no Shorts playlist found for channel ${channelId}`);
+      return { shorts: [], nextPageToken: undefined };
+    }
+    throw err;
+  }
+}
+

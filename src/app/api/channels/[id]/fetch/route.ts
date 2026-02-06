@@ -2,7 +2,8 @@ import { NextResponse } from "next/server";
 
 import { prisma } from "@/lib/db";
 import { getEnv } from "@/lib/env";
-import { runApifyActor, readApifyDatasetItems, guessApifyVideo } from "@/lib/apify";
+import { runApifyActor, readApifyDatasetItems, guessApifyVideo, guessApifyProfile } from "@/lib/apify";
+import { scrapeInstagramProfile, mapInstagramPost } from "@/lib/instagram";
 import { getApiUserId } from "@/lib/session";
 import {
   fetchYouTubeChannelWithVideos,
@@ -51,20 +52,32 @@ export async function POST(
   if (!channel) return NextResponse.json({ error: "Channel not found" }, { status: 404 });
 
   const env = getEnv();
-  
+
   // Allow custom limit via query param
   const url = new URL(req.url);
   const limitParam = url.searchParams.get("limit");
+  const loadMore = url.searchParams.get("loadMore") === "true";
   const limit = limitParam ? Math.min(100, Math.max(1, parseInt(limitParam) || env.FETCH_LIMIT_PER_CHANNEL)) : env.FETCH_LIMIT_PER_CHANNEL;
+
+  // Use stored pageToken for "load more" requests
+  // If token is "__END__", there are no more videos to load
+  if (loadMore && channel.nextPageToken === "__END__") {
+    return NextResponse.json({
+      itemsFetched: 0,
+      message: "Все доступные видео уже загружены"
+    });
+  }
+  const pageToken = loadMore ? (channel.nextPageToken ?? undefined) : undefined;
 
   try {
     if (channel.platform === "YOUTUBE") {
       console.log(
-        `[fetch] youtube start userId=${userId} channelId=${channel.id} externalId=${channel.externalId} limit=${limit}`
+        `[fetch] youtube start userId=${userId} channelId=${channel.id} externalId=${channel.externalId} limit=${limit} loadMore=${loadMore} pageToken=${pageToken ?? "none"}`
       );
-      const { channel: ytChannel, videos } = await fetchYouTubeChannelWithVideos(
+      const { channel: ytChannel, videos, nextPageToken } = await fetchYouTubeChannelWithVideos(
         channel.externalId,
-        limit
+        limit,
+        pageToken
       );
 
       console.log(
@@ -77,21 +90,37 @@ export async function POST(
         ytChannel.snippet?.thumbnails?.default?.url ??
         null;
 
-      await prisma.channel.update({
-        where: { id: channel.id },
-        data: {
-          displayName: ytChannel.snippet?.title ?? null,
-          handle: ytChannel.snippet?.customUrl ?? null,
-          avatarUrl,
-          subscribersCount: toBigInt(ytChannel.statistics?.subscriberCount) ?? null,
-          totalViewsCount: toBigInt(ytChannel.statistics?.viewCount) ?? null,
-          videosCount: ytChannel.statistics?.videoCount
-            ? Number(ytChannel.statistics.videoCount)
-            : null,
-          lastFetchedAt: new Date(),
-          raw: ytChannel as any
-        }
-      });
+      // For loadMore, only update nextPageToken
+      // For full fetch, update all channel data
+      // Use "__END__" marker when no more pages are available
+      const tokenToSave = nextPageToken ?? "__END__";
+
+      if (loadMore) {
+        await prisma.channel.update({
+          where: { id: channel.id },
+          data: {
+            nextPageToken: tokenToSave,
+            lastFetchedAt: new Date()
+          }
+        });
+      } else {
+        await prisma.channel.update({
+          where: { id: channel.id },
+          data: {
+            displayName: ytChannel.snippet?.title ?? null,
+            handle: ytChannel.snippet?.customUrl ?? null,
+            avatarUrl,
+            subscribersCount: toBigInt(ytChannel.statistics?.subscriberCount) ?? null,
+            totalViewsCount: toBigInt(ytChannel.statistics?.viewCount) ?? null,
+            videosCount: ytChannel.statistics?.videoCount
+              ? Number(ytChannel.statistics.videoCount)
+              : null,
+            nextPageToken: tokenToSave,
+            lastFetchedAt: new Date(),
+            raw: ytChannel as any
+          }
+        });
+      }
 
       let itemsFetched = 0;
       for (const v of videos ?? []) {
@@ -152,38 +181,126 @@ export async function POST(
       return NextResponse.json({ ok: true, itemsFetched });
     }
 
-    // Apify for Instagram/TikTok
-    const actorId =
-      channel.platform === "INSTAGRAM"
-        ? env.APIFY_INSTAGRAM_ACTOR_ID
-        : env.APIFY_TIKTOK_ACTOR_ID;
+    // Instagram via Instaloader (direct scraping)
+    if (channel.platform === "INSTAGRAM") {
+      // Extract username from URL or handle
+      const rawProfile = channel.handle ?? channel.url ?? channel.externalId;
+      let username = rawProfile.replace(/^@/, "");
+      const igMatch = username.match(/instagram\.com\/([^\/\?]+)/i);
+      if (igMatch) username = igMatch[1];
+
+      console.log(
+        `[fetch] instagram start userId=${userId} channelId=${channel.id} username=${username} limit=${limit}`
+      );
+
+      const result = await scrapeInstagramProfile(username, limit);
+
+      if (!result.success) {
+        const errorMsg = result.error || "Unknown error";
+        console.error(
+          `[fetch] instagram error userId=${userId} channelId=${channel.id} error=${errorMsg} errorCode=${result.error_code}`
+        );
+        throw new Error(`Ошибка парсинга Instagram: ${errorMsg}`);
+      }
+
+      // Extract profile data
+      const profile = result.profile;
+      if (profile) {
+        await prisma.channel.update({
+          where: { id: channel.id },
+          data: {
+            displayName: profile.full_name || profile.username,
+            handle: profile.username,
+            avatarUrl: profile.profile_pic_url,
+            subscribersCount: BigInt(profile.followers),
+            lastFetchedAt: new Date()
+          }
+        });
+        console.log(
+          `[fetch] instagram profile updated channelId=${channel.id} displayName=${profile.full_name} followers=${profile.followers}`
+        );
+      }
+
+      // Process posts
+      let itemsFetched = 0;
+      const posts = result.posts || [];
+
+      for (const post of posts) {
+        const v = mapInstagramPost(post);
+        if (!v.externalId || !v.url) continue;
+
+        // Upsert video
+        const toBigInt = (s: string | undefined) => (s ? BigInt(s) : null);
+        const toDate = (s: string | undefined) => (s ? new Date(s) : new Date());
+
+        await prisma.video.upsert({
+          where: {
+            userId_platform_externalId: {
+              userId: userId,
+              platform: channel.platform,
+              externalId: v.externalId!
+            }
+          },
+          update: {
+            title: v.title ?? "",
+            description: v.description,
+            url: v.url!,
+            thumbnailUrl: v.thumbnailUrl,
+            viewsCount: toBigInt(v.viewsCount),
+            likesCount: toBigInt(v.likesCount),
+            commentsCount: toBigInt(v.commentsCount),
+            publishedAt: toDate(v.publishedAt),
+            raw: v.raw as any,
+            channelId: channel.id
+          },
+          create: {
+            channelId: channel.id,
+            userId: userId,
+            platform: channel.platform,
+            externalId: v.externalId!,
+            title: v.title ?? "",
+            description: v.description,
+            url: v.url!,
+            thumbnailUrl: v.thumbnailUrl,
+            viewsCount: toBigInt(v.viewsCount),
+            likesCount: toBigInt(v.likesCount),
+            commentsCount: toBigInt(v.commentsCount),
+            publishedAt: toDate(v.publishedAt),
+            raw: v.raw as any
+          }
+        });
+
+        itemsFetched += 1;
+      }
+
+      console.log(
+        `[fetch] instagram persisted userId=${userId} channelId=${channel.id} itemsFetched=${itemsFetched}`
+      );
+
+      return NextResponse.json({ ok: true, itemsFetched });
+    }
+
+    // Apify for TikTok only
+    const actorId = env.APIFY_TIKTOK_ACTOR_ID;
 
     // Extract username from URL or handle
     const rawProfile = channel.handle ?? channel.url ?? channel.externalId;
     // Remove @ prefix and extract username from URL if needed
     let username = rawProfile.replace(/^@/, "");
-    // Extract from Instagram URL: instagram.com/username or instagram.com/username/
-    const igMatch = username.match(/instagram\.com\/([^\/\?]+)/i);
-    if (igMatch) username = igMatch[1];
     // Extract from TikTok URL: tiktok.com/@username
     const ttMatch = username.match(/tiktok\.com\/@?([^\/\?]+)/i);
     if (ttMatch) username = ttMatch[1];
-    
-    // Build input based on platform
-    const apifyInput = channel.platform === "TIKTOK"
-      ? {
-          profiles: [username],
-          excludePinnedPosts: false,
-          shouldDownloadVideos: false,
-          shouldDownloadCovers: false,
-          shouldDownloadAvatars: false,
-          shouldDownloadSlideshowImages: false,
-          shouldDownloadSubtitles: false
-        }
-      : {
-          username: [username],
-          resultsLimit: limit
-        };
+
+    // Build input for TikTok
+    const apifyInput = {
+      profiles: [username],
+      excludePinnedPosts: false,
+      shouldDownloadVideos: false,
+      shouldDownloadCovers: false,
+      shouldDownloadAvatars: false,
+      shouldDownloadSlideshowImages: false,
+      shouldDownloadSubtitles: false
+    };
 
     console.log(
       `[fetch] apify start userId=${userId} channelId=${channel.id} platform=${channel.platform} actorId=${actorId} username=${username} limit=${limit}`
@@ -207,6 +324,32 @@ export async function POST(
       console.log(
         `[fetch] apify sample item channelId=${channel.id} datasetId=${datasetId} keys=${keys.join(",")}`
       );
+
+      // Check if Apify returned an error instead of data
+      if (it && (it.errorCode || it.error)) {
+        const errorMsg = it.error || it.errorCode || "Unknown Apify error";
+        console.error(
+          `[fetch] apify error userId=${userId} channelId=${channel.id} datasetId=${datasetId} errorCode=${it.errorCode} error=${errorMsg}`
+        );
+        throw new Error(`Ошибка парсинга (Apify): ${errorMsg}`);
+      }
+    }
+
+    // Extract profile data from the first item (if available)
+    let profileData: any = {};
+    if (items.length > 0) {
+      const profile = guessApifyProfile(items[0]);
+      if (profile) {
+        console.log(
+          `[fetch] apify profile extracted channelId=${channel.id} displayName=${profile.displayName} handle=${profile.handle} subscribers=${profile.subscribersCount}`
+        );
+        profileData = {
+          displayName: profile.displayName ?? null,
+          handle: profile.handle ?? null,
+          avatarUrl: profile.avatarUrl ?? null,
+          subscribersCount: profile.subscribersCount ? toBigInt(profile.subscribersCount) ?? null : null,
+        };
+      }
     }
 
     let itemsFetched = 0;
@@ -263,6 +406,7 @@ export async function POST(
     await prisma.channel.update({
       where: { id: channel.id },
       data: {
+        ...profileData,
         lastFetchedAt: new Date()
       }
     });

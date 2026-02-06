@@ -2,7 +2,6 @@
 
 import { useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
-import Image from "next/image";
 import Link from "next/link";
 import { Filter, X, Trash2, ExternalLink } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -314,12 +313,11 @@ export function VideosClient({ initialVideos, channels }: Props) {
                     onClick={() => setPreviewVideo(v)}
                   >
                     {v.thumbnailUrl ? (
-                      <Image
+                      <img
                         src={v.thumbnailUrl}
                         alt={v.title ?? "thumbnail"}
-                        fill
-                        className="object-cover"
-                        unoptimized
+                        className="h-full w-full object-cover"
+                        referrerPolicy="no-referrer"
                       />
                     ) : (
                       <div className="flex h-full w-full items-center justify-center bg-muted text-xs text-muted-foreground">
@@ -390,12 +388,11 @@ export function VideosClient({ initialVideos, channels }: Props) {
             </button>
             <div className="aspect-video w-full overflow-hidden rounded-md bg-black">
               {previewVideo.thumbnailUrl ? (
-                <Image
+                <img
                   src={previewVideo.thumbnailUrl}
                   alt={previewVideo.title ?? "preview"}
-                  fill
-                  className="object-contain"
-                  unoptimized
+                  className="h-full w-full object-contain"
+                  referrerPolicy="no-referrer"
                 />
               ) : (
                 <div className="flex h-full w-full items-center justify-center text-muted-foreground">

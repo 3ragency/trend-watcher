@@ -19,7 +19,7 @@ type ApifyRunResponse = {
 export async function runApifyActor(actorId: string, input: unknown) {
   const env = getEnv();
   if (!actorId) throw new Error("Apify actor id is not set");
-  const url = `${BASE}/acts/${encodeURIComponent(actorId)}/runs?token=${encodeURIComponent(env.APIFY_TOKEN)}&waitForFinish=120`;
+  const url = `${BASE}/acts/${encodeURIComponent(actorId)}/runs?token=${encodeURIComponent(env.APIFY_TOKEN)}&waitForFinish=180`;
   const run = await apifyFetch<ApifyRunResponse>(url, {
     method: "POST",
     headers: { "content-type": "application/json" },
@@ -111,5 +111,50 @@ export function guessApifyVideo(item: any) {
     commentsCount: commentsCount !== undefined ? String(commentsCount) : undefined,
     publishedAt: publishedAt !== undefined ? String(publishedAt) : undefined,
     raw: item
+  };
+}
+
+export function guessApifyProfile(item: any) {
+  // Extract author metadata from various possible fields
+  const author = item?.authorMeta ?? item?.author ?? item?.owner ?? item?.user;
+
+  if (!author) return null;
+
+  const displayName =
+    author?.name ??
+    author?.displayName ??
+    author?.nickname ??
+    author?.fullName ??
+    author?.title;
+
+  const handle =
+    author?.username ??
+    author?.handle ??
+    author?.nickName ??
+    author?.userName;
+
+  const avatarUrl =
+    author?.avatar ??
+    author?.avatarUrl ??
+    author?.profilePicUrl ??
+    author?.profilePicture ??
+    author?.picture ??
+    author?.image ??
+    author?.profilePic;
+
+  const subscribersCount =
+    author?.followers ??
+    author?.followerCount ??
+    author?.followersCount ??
+    author?.subscribers ??
+    author?.subscriberCount ??
+    author?.fans ??
+    author?.fanCount;
+
+  return {
+    displayName: displayName ? String(displayName) : undefined,
+    handle: handle ? String(handle) : undefined,
+    avatarUrl: avatarUrl ? String(avatarUrl) : undefined,
+    subscribersCount: subscribersCount !== undefined ? String(subscribersCount) : undefined,
   };
 }

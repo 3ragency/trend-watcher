@@ -55,23 +55,25 @@ export default function LoginPage() {
         <CardHeader>
           <CardTitle>Вход</CardTitle>
         </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="space-y-2">
-            <Label>Email</Label>
-            <Input value={email} onChange={(e) => setEmail(e.target.value)} />
-          </div>
-          <div className="space-y-2">
-            <Label>Пароль</Label>
-            <Input
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-            />
-          </div>
-          {error ? <div className="text-sm text-red-400">{error}</div> : null}
-          <Button className="w-full" disabled={isBusy} onClick={onSubmit}>
-            Войти
-          </Button>
+        <CardContent>
+          <form className="space-y-4" onSubmit={(e) => { e.preventDefault(); onSubmit(); }}>
+            <div className="space-y-2">
+              <Label>Email</Label>
+              <Input value={email} onChange={(e) => setEmail(e.target.value)} />
+            </div>
+            <div className="space-y-2">
+              <Label>Пароль</Label>
+              <Input
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+              />
+            </div>
+            {error ? <div className="text-sm text-red-400">{error}</div> : null}
+            <Button className="w-full" disabled={isBusy} type="submit">
+              Войти
+            </Button>
+          </form>
         </CardContent>
       </Card>
 
