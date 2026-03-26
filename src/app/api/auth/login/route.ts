@@ -44,7 +44,7 @@ export async function POST(req: Request) {
   }
 
   const token = await signSessionToken({ sub: user.id, email: user.email });
-  await setSessionCookie(token, { secure: isSecureRequest(req) });
+  await setSessionCookie(token);
 
   return NextResponse.json({ ok: true });
 }
