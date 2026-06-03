@@ -7,8 +7,8 @@ import { PlatformProvider } from "@/components/platform-context";
 const inter = Inter({ subsets: ["latin", "cyrillic"] });
 
 export const metadata: Metadata = {
-  title: "Trend Watcher",
-  description: "Trending video analytics for YouTube, Instagram, TikTok"
+  title: "Tender Analysis",
+  description: "Tender analysis dashboard for YouTube, Instagram, TikTok"
 };
 
 export default function RootLayout({
